@@ -1,10 +1,11 @@
 # Minimax SDK
 
-[![PHP](https://img.shields.io/badge/PHP-8.4%2B-777bb4?logo=php&logoColor=white)](composer.json)
+[![Latest Version](https://img.shields.io/packagist/v/nejcc/minimax-sdk?logo=packagist&logoColor=white)](https://packagist.org/packages/nejcc/minimax-sdk)
+[![Downloads](https://img.shields.io/packagist/dt/nejcc/minimax-sdk)](https://packagist.org/packages/nejcc/minimax-sdk)
+[![PHP](https://img.shields.io/packagist/php-v/nejcc/minimax-sdk?logo=php&logoColor=white)](composer.json)
 [![Laravel](https://img.shields.io/badge/Laravel-13-ff2d20?logo=laravel&logoColor=white)](composer.json)
 [![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)](tests)
-[![Tests](https://img.shields.io/badge/tests-37%20passing-brightgreen)](tests)
-[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![License](https://img.shields.io/packagist/l/nejcc/minimax-sdk)](LICENSE)
 
 A Laravel SDK for the [Minimax](https://www.minimax.si) accounting API (SI / HR / RS).
 It handles OAuth2 auth and token caching, and wraps issued invoices, orders,
