@@ -1,46 +1,51 @@
 # Minimax SDK
 
-A fluent Laravel SDK for the **Minimax** accounting API — the cloud accounting platform used across Slovenia (SI), Croatia (HR) and Serbia (RS). It handles OAuth2 authentication and token caching for you, and exposes issued invoices, orders, customers, items and every code list through a small, expressive fluent API.
+Minimax is the cloud accounting platform most Slovenian small businesses run their books on, with the same product serving Croatia and Serbia. It exposes a REST API, but that API speaks its own dialect: PascalCase field names, an OAuth2 password grant, organisation-scoped URLs, and a row-versioning scheme for edits. This package wraps all of that so you can stay in Laravel and write `Minimax::customers()->all()` instead of hand-rolling Guzzle calls and re-reading the token docs every six months.
 
-- **Zero-config auth** — OAuth2 password grant with automatic, leeway-aware token caching.
-- **Fake mode** — canned fixtures so the SDK and admin UI run end-to-end before your credentials arrive.
-- **Fluent resources** — typed CRUD helpers plus a generic escape hatch for any endpoint.
-- **Local admin UI** — a dashboard, live diagnostics and a browsable resource explorer, local env only.
+The design goal is to be thin and predictable. Resources return plain arrays with Minimax's own field names, so what you read in their API reference is what you get back in PHP. There's no DTO layer to learn and nothing to keep in sync when Minimax adds a field. The parts worth automating (authentication, token caching, the create-then-follow-Location dance) are handled for you; everything else stays out of your way.
+
+Use it when a Laravel app needs to read from or push into Minimax: issuing invoices for online sales, pulling a customer list into an admin screen, or letting an accountant's tooling reach your data. If you only need to eyeball a couple of records by hand, the Minimax web UI is faster; this is for the flows you want in code.
+
+- **Authentication you never think about.** The OAuth2 password grant and token caching are handled internally, with a safety margin so a token never expires mid-request.
+- **Fake mode.** Flip one env var and the SDK returns canned fixtures instead of calling the network, so you can build the whole integration before your credentials arrive.
+- **Fluent, typed resources.** Every entity shares the same CRUD surface, plus a generic escape hatch for endpoints that don't have a dedicated class yet.
+- **A local admin UI and an MCP server.** A dashboard for checking your setup during development, and read-only tools an AI coding agent can call.
 
 ## Requirements
 
-- PHP **8.4+**
-- Laravel **13** (`illuminate/support` & `illuminate/http` ^13.0)
-- Minimax OAuth2 credentials (from Minimax support) and an application-specific password
+- **PHP 8.4 or newer.** The client uses `mb_ltrim`, added in 8.4, and the codebase leans on typed properties and enums throughout.
+- **Laravel 13.** The package binds into Laravel's container, HTTP client, cache, and config, so it expects a current framework.
+- **Minimax credentials.** You need an OAuth2 client id and secret, which Minimax support issues per integration, plus an application-specific username and password generated from your Minimax profile under login.minimax.si/Profile. The application password is separate from your normal login and can be revoked without locking yourself out of the web UI.
 
-> No credentials yet? Skip straight to [Fake mode](#fake-mode) — the whole SDK works offline against canned fixtures.
+If you're still waiting on any of those, don't let it block you. [Fake mode](#fake-mode) runs the entire SDK against fixtures with no credentials at all, so you can wire up and test your integration end to end and switch to the real API later by changing one setting.
 
 ## Installation
 
-This package lives inside the app as a path repository. Point Composer at it in the root `composer.json`:
+Install from Packagist:
+
+```bash
+composer require nejcc/minimax-sdk
+```
+
+Then publish the config file so you can read and tweak the defaults:
+
+```bash
+php artisan vendor:publish --tag=minimax-config
+```
+
+That's the whole setup. The service provider and the `Minimax` facade alias are registered through Laravel's package discovery, so there's nothing to add to `config/app.php` or `bootstrap/providers.php` by hand.
+
+If you're developing the package alongside an app in the same repository, point Composer at it as a path repository instead and require `@dev`:
 
 ```json
 "repositories": [
     { "type": "path", "url": "packages/nejcc/minimax-sdk" }
-],
-"require": {
-    "nejcc/minimax-sdk": "@dev"
-}
+]
 ```
-
-Then install and publish the config file:
-
-```bash
-composer update nejcc/minimax-sdk
-
-php artisan vendor:publish --tag=minimax-config
-```
-
-The service provider and the `Minimax` facade alias are auto-discovered via Laravel package discovery — nothing to register manually.
 
 ## Configuration
 
-All configuration is driven by environment variables. Add these to your `.env`:
+Everything is driven by environment variables, which keeps credentials out of version control and lets each environment point at its own Minimax organisation. Add these to your `.env`:
 
 ```dotenv
 MINIMAX_LOCALIZATION=SI          # SI | HR | RS
@@ -57,152 +62,172 @@ MINIMAX_AUTO_INVOICE=false       # host app: issue an invoice on a paid order
 MINIMAX_AUTO_INVOICE_QUEUE=true  # queue that work (recommended) or run inline
 ```
 
+The one value you'll most often forget is `MINIMAX_ORG_ID`. A single Minimax login can see several organisations (your own company, a client's books, a test company), and every data endpoint lives under one of them. If you leave it empty, org-scoped calls throw until you either set it or pass an id per call with `forOrg()`. To find the id, call `Minimax::orgs()->all()` once and read it off the response, or open the dashboard in the [admin UI](#admin-ui).
+
 ### Config reference
 
 | Key | Default | Description |
 | --- | --- | --- |
-| `localization` | `SI` | Country of your account — drives the token & API base URLs. |
-| `client_id` / `client_secret` | — | OAuth2 client credentials, provided by Minimax support. |
-| `username` / `password` | — | Application-specific password from login.minimax.si/Profile. |
+| `localization` | `SI` | Country of your account. Drives both the token and API base URLs, so it has to match where your Minimax account actually lives. |
+| `client_id` / `client_secret` | — | OAuth2 client credentials, issued by Minimax support for your integration. |
+| `username` / `password` | — | Application-specific password from login.minimax.si/Profile, not your normal login. |
 | `scope` | `minimax.si` | OAuth2 scope requested with the token. |
-| `org_id` | `null` | Default organisation for org-scoped resources. Override per call with `forOrg()`. |
+| `org_id` | `null` | Default organisation for org-scoped resources. Override per chain with `forOrg()`. |
 | `fake` | `false` | Return canned fixtures instead of sending HTTP. See [Fake mode](#fake-mode). |
-| `token_leeway` | `30` | Seconds subtracted from `expires_in` so a token never expires mid-flight. |
+| `token_leeway` | `30` | Seconds subtracted from the token's reported lifetime before it's cached, so you never send one that expires in transit. |
 | `admin_prefix` | `admin/minimax` | URL prefix for the local admin UI. |
-| `resources` | 13 slugs | Registry of org-scoped endpoints browsable in the admin UI. See [Generic resources](#generic-resources). |
-| `auto_invoice` | `false` | Host-app: issue an invoice when an order is paid. The SDK ships the toggle; the wiring lives in your app. |
-| `auto_invoice_queue` | `true` | Queue the auto-invoice work (recommended) or run it inline. |
+| `resources` | 13 slugs | Registry of org-scoped endpoints the admin UI can browse and the MCP tools are allowed to reach. See [Generic resources](#generic-resources). |
+| `auto_invoice` | `false` | Host-app switch: issue an invoice when an order is paid. The SDK ships the toggle; the wiring lives in your application. |
+| `auto_invoice_queue` | `true` | Run that auto-invoice work on the queue (recommended) or inline. |
 
 ## Authentication
 
-The SDK authenticates via the OAuth2 **password grant** and caches the access token (keyed by client + user) until shortly before it expires. You never call the token endpoint yourself — every request transparently attaches a valid `Bearer` token.
+Minimax authenticates with the OAuth2 password grant. In practice that means the SDK sends your client credentials and application password to the token endpoint, gets back a bearer token with a lifetime (usually an hour), and attaches that token to every subsequent request. You never trigger any of this yourself. The first call that needs a token fetches one, and the rest reuse it.
+
+Tokens are cached in your application's default cache store, keyed by localization plus client plus user, so switching countries or accounts never hands back the wrong token. The cached lifetime is the token's real lifetime minus `token_leeway` (30 seconds by default). That margin exists because a token that's valid when you check the cache can still expire during a slow request; shaving a few seconds off means you refresh slightly early instead of getting a surprise 401 halfway through a batch.
 
 ```php
 use Nejcc\Minimax\Facades\Minimax;
 
-// Force a token (usually you never need this — requests do it for you)
+// You almost never call this directly — requests fetch and cache a token
+// for you. It's here for health checks and debugging.
 $token = Minimax::client()->token();
 ```
 
-Base URLs are derived from your localization, e.g. for `SI`:
+Base URLs come from your localization. For an SI account:
 
-- Token: `https://moj.minimax.si/SI/AUT/oauth20/token`
-- API: `https://moj.minimax.si/SI/API/api/…`
+- Token endpoint: `https://moj.minimax.si/SI/AUT/oauth20/token`
+- API base: `https://moj.minimax.si/SI/API/api/…`
 
-> The cache uses your default store. Token TTL is `expires_in − token_leeway`, so with the default 30s leeway you never send a token that dies in transit.
+Two security details are handled for you and worth knowing about. All traffic is HTTPS with certificate verification left on, and the client refuses to follow a `Location` redirect to any host other than the one it authenticated against, so a bearer token is never re-sent off-domain. If a token request itself fails, you get a `MinimaxException` with the response body attached rather than a silent empty result.
 
 ## Fake mode
 
-Set `MINIMAX_FAKE=true` and the SDK sends **no HTTP at all** — it returns canned fixtures instead. This lets you build against the SDK, run the diagnostics page, and browse the resource explorer before real credentials exist.
+Set `MINIMAX_FAKE=true` and the SDK stops talking to the network entirely. Every call returns a canned fixture that matches the shape of a real response. This is the difference between waiting a week for Minimax to provision your credentials and shipping the integration in the meantime.
 
 ```php
 // .env
 MINIMAX_FAKE=true
 
-// Works with no credentials — returns fixture rows
+// Works with no credentials at all
 Minimax::forOrg(123456)->customers()->all();
 // => ['Rows' => [ ['CustomerId' => 1, 'Name' => 'Demo Customer d.o.o.', ...], ... ]]
 ```
 
-> Fake mode is a coarse path matcher, not a full API simulator. It stubs the common list/create/issue paths — enough to exercise the SDK. Turn it off once credentials are in place.
+Fake mode powers three things: the SDK itself in local development, the [admin UI](#admin-ui) diagnostics and resource browser, and the [MCP tools](#mcp-for-ai-agents) so an AI agent can explore the API's shape without a login. It's a coarse path matcher, not a full accounting simulator. It knows the common list, create, and invoice paths and returns believable rows for them; it does not enforce business rules or persist anything between calls. Treat it as a way to exercise your code, not to validate accounting logic. Turn it off the moment real credentials land, and confirm your endpoints against the live API, because fake mode will happily answer paths that production might reject.
 
 ## Quick start
 
-Everything goes through the `Minimax` facade. Resources are org-scoped and return plain arrays using Minimax's own field names.
+Everything goes through the `Minimax` facade. Resources are scoped to an organisation and return plain arrays using Minimax's own field names, so a response you see in their API reference maps straight onto the array you get back.
 
 ```php
 use Nejcc\Minimax\Facades\Minimax;
 
-// List the organisations your user can access
+// Which organisations can this login see? Use this once to find your org id.
 $orgs = Minimax::orgs()->all();
 
-// List customers in the default org (MINIMAX_ORG_ID)
+// Customers in the default organisation (MINIMAX_ORG_ID).
 $customers = Minimax::customers()->all()['Rows'];
 
-// Work against a specific org for one chain
+// Work against a different organisation for one chain only.
 $items = Minimax::forOrg(654321)->items()->all();
 
-// Create + issue an invoice, then grab the PDF bytes
-$invoice = Minimax::invoices()->create([...]);
-$pdf     = Minimax::invoices()->pdf($invoice['IssuedInvoiceId'], $invoice['RowVersion']);
+// Resolve a code-list entry, e.g. the standard VAT rate.
+$vat = Minimax::vatRates()->byCode('S');
+
+// Create a draft invoice, issue it, and get the PDF bytes back.
+$invoice = Minimax::invoices()->create([/* ... */]);
+$pdf = Minimax::invoices()->pdf($invoice['IssuedInvoiceId'], $invoice['RowVersion']);
 ```
+
+Most responses that return more than one record wrap them in a `Rows` array, so reaching for `['Rows']` is the norm. Single-record reads return the record's fields at the top level.
 
 ## The manager
 
-`Minimax` (resolved via the facade or type-hint) is the entry point. It carries the current organisation context and hands you resource objects.
+The `Minimax` class, which you reach through the facade or by type-hinting it, is the entry point. It holds the current organisation context and hands you resource objects on demand. Think of it as a thin router: it doesn't do the HTTP work itself, it just decides which endpoint the resource you asked for should hit.
+
+```php
+// Type-hint it anywhere the container resolves, instead of the facade.
+public function __construct(private \Nejcc\Minimax\Minimax $minimax) {}
+```
 
 | Method | Returns | Notes |
 | --- | --- | --- |
-| `forOrg($orgId)` | `Minimax` | Immutable clone scoped to a different org. |
-| `orgs()` | `Orgs` | Not org-scoped. |
+| `forOrg($orgId)` | `Minimax` | An immutable clone scoped to a different organisation. The original is untouched, so you can safely branch mid-request. |
+| `orgs()` | `Orgs` | The only resource that isn't org-scoped. |
 | `customers()` | `Customers` | Org-scoped CRUD. |
 | `items()` | `Items` | Org-scoped CRUD. |
-| `invoices()` | `Invoices` | CRUD + issue/pdf actions. |
+| `invoices()` | `Invoices` | CRUD plus the issue and PDF helpers. |
 | `orders()` | `Orders` | Org-scoped CRUD. |
-| `vatRates()` | `VatRates` | Code list. |
-| `currencies()` | `Currencies` | Code list. |
-| `countries()` | `Countries` | Code list. |
-| `reportTemplates()` | `ReportTemplates` | Code list. |
-| `resource($slug)` | `Generic` | Any endpoint by slug — see [Generic resources](#generic-resources). |
-| `client()` | `Client` | The low-level HTTP client. |
+| `vatRates()` `currencies()` `countries()` `reportTemplates()` | resource | Read-oriented code lists. |
+| `resource($slug)` | `Generic` | Any org-scoped endpoint by slug. See [Generic resources](#generic-resources). |
+| `client()` | `Client` | The low-level HTTP client, for health checks or raw requests. |
 
-> Org-scoped resources throw `MinimaxException` if no org is set. Configure `MINIMAX_ORG_ID` or call `forOrg($id)` first.
+`forOrg()` returns a clone rather than mutating the manager, which matters more than it looks. If you're serving a multi-tenant admin screen and need to read from two organisations in the same request, `$a = Minimax::forOrg(1)` and `$b = Minimax::forOrg(2)` stay independent. Any org-scoped resource throws a `MinimaxException` if no organisation is set at all, so configure `MINIMAX_ORG_ID` or start your chain with `forOrg()`.
 
 ## CRUD basics
 
-Every org-scoped resource (`customers`, `items`, `orders`, `invoices`, code lists and generic slugs) shares the same base CRUD surface. Records are plain arrays with Minimax field names.
+Every org-scoped resource (customers, items, orders, invoices, the code lists, and anything reached through `resource()`) shares one base set of methods. Learn it once and it applies everywhere.
 
 | Method | HTTP | Description |
 | --- | --- | --- |
-| `all($query = [])` | GET | List records; pass query params for paging/filtering. |
-| `find($id)` | GET | Fetch one record by id. |
-| `byCode($code, $query = [])` | GET | Fetch one record by its business code, e.g. VAT rate "S". |
-| `create($data)` | POST | Create; follows the `Location` header and returns the created entity. |
+| `all($query = [])` | GET | List records. Pass query parameters for paging and filtering. |
+| `find($id)` | GET | Fetch one record by its id. |
+| `byCode($code, $query = [])` | GET | Fetch one record by its business code, e.g. a VAT rate `"S"`. |
+| `create($data)` | POST | Create a record. Follows the `Location` header and returns the created entity in full. |
 | `update($id, $data)` | PUT | Replace a record. |
-| `delete($id)` | DELETE | Delete a record (returns an empty array). |
+| `delete($id)` | DELETE | Delete a record. Returns an empty array. |
 
 ```php
 $rows     = Minimax::customers()->all(['PageSize' => 50])['Rows'];
 $customer = Minimax::customers()->find(1);
-$created  = Minimax::customers()->create(['Name' => 'ACME d.o.o.', ...]);
+$created  = Minimax::customers()->create(['Name' => 'ACME d.o.o.']);
 Minimax::customers()->update($created['CustomerId'], ['Name' => 'ACME Ltd']);
 Minimax::customers()->delete($created['CustomerId']);
 ```
 
-> **Create follows the Location header.** A `201 Created` response returns the created entity by following the `Location` URL — so `create()` gives you the full record, including its `RowVersion`.
+Two behaviours are worth internalising. First, `create()` follows the `Location` header. Minimax answers a successful create with a `201 Created` and a `Location` pointing at the new record rather than returning the record inline, so the SDK transparently does that second GET and hands you the complete entity, including its `RowVersion`. You don't get a bare id and then have to fetch it yourself.
+
+Second, that `RowVersion` is Minimax's optimistic-concurrency guard. It comes back on `create()` and `find()`, and edits and state changes want the current one. If two processes read the same record and both try to change it, the second one's stale `RowVersion` is rejected, which is the point: it stops a background job and an accountant clicking in the UI from silently clobbering each other.
 
 ## Organisations
 
-`orgs()` is the only resource that isn't org-scoped — it lives under `currentuser/orgs` and lists every organisation the authenticated user can access. Use it to discover your `MINIMAX_ORG_ID`.
+`orgs()` is the odd one out. It isn't scoped to an organisation, because it's the call you make to discover which organisations exist in the first place. It lives under `currentuser/orgs` and lists everything the authenticated login can reach.
 
 ```php
-$rows = Minimax::orgs()->all()['Rows'];
-
-foreach ($rows as $row) {
-    $row['Organisation']['ID'];   // e.g. 123456
+foreach (Minimax::orgs()->all()['Rows'] as $row) {
+    $row['Organisation']['ID'];   // e.g. 123456 — this is your MINIMAX_ORG_ID
     $row['Organisation']['Name']; // e.g. "Demo d.o.o."
 }
 ```
 
+In a typical setup you call this once during onboarding, read the id of the organisation you care about, and paste it into `MINIMAX_ORG_ID`. After that, everything else flows through the default org and you rarely touch `orgs()` again.
+
 ## Customers, Items & Orders
 
-These are plain CRUD resources — nothing beyond the [base surface](#crud-basics). They map to `customers`, `items` and `orders`.
+These are plain CRUD resources with nothing beyond the [base surface](#crud-basics). They map to Minimax's `customers`, `items`, and `orders` endpoints, and they're where most day-to-day integration work happens: syncing a buyer into Minimax before invoicing them, referencing a catalogue item on an invoice line, or mirroring an order.
 
 ```php
 Minimax::customers()->all();
+
 Minimax::items()->find(77);
+
 Minimax::orders()->create([
     'CustomerId' => 1,
-    'Rows'       => [ ['ItemId' => 77, 'Quantity' => 2, 'Price' => 50.00] ],
+    'Rows'       => [
+        ['ItemId' => 77, 'Quantity' => 2, 'Price' => 50.00],
+    ],
 ]);
 ```
 
+A practical note for anyone invoicing an online catalogue: you rarely need to push every product into Minimax up front. If your invoice lines can carry a name and price directly, you may need no item sync at all; if Minimax wants an item reference, create each item lazily the first time it sells and cache the returned id against your local product. Pushing thousands of items that mostly never sell just clutters the accounting catalogue.
+
 ## Code lists
 
-`vatRates()`, `currencies()`, `countries()` and `reportTemplates()` are read-oriented code lists. They support the full CRUD surface, but `byCode()` is the useful one — resolve a record by its business code.
+`vatRates()`, `currencies()`, `countries()`, and `reportTemplates()` are read-oriented code lists. They support the full CRUD surface, but in practice you'll only ever read from them, and `byCode()` is the method that earns its keep. Code lists change rarely, so they're a good candidate for caching on your side if you find yourself resolving the same VAT rate on every invoice.
 
 ```php
-// Resolve the standard 22% VAT rate by its code
+// Resolve the standard 22% VAT rate by its business code.
 $vat = Minimax::vatRates()->byCode('S');
 // => ['VatRateId' => 1, 'Percent' => 22, ...]
 
@@ -210,25 +235,31 @@ $eur = Minimax::currencies()->byCode('EUR');
 $si  = Minimax::countries()->byCode('SI');
 ```
 
+`byCode()` matters because Minimax invoice rows reference these entries by their internal id, not their human code. You know you want "the standard rate" or "EUR"; `byCode()` turns that into the id Minimax expects.
+
 ## Invoices
 
-`invoices()` maps to `issuedinvoices` and adds three helpers on top of CRUD. Minimax invoices are created in a draft state, then *issued* — a state-changing action guarded by the record's `RowVersion` (optimistic concurrency).
+`invoices()` maps to Minimax's `issuedinvoices` endpoint and adds three helpers on top of CRUD. Issued invoices have a lifecycle that trips people up the first time, so it's worth walking through.
+
+An invoice is created as a **draft**. A draft isn't a real accounting document yet: it has no final number, it isn't in the books, and you can still change it. Turning it into a legal invoice is a separate **issue** step, and issuing is a state change guarded by the record's `RowVersion`.
 
 | Method | Description |
 | --- | --- |
-| `action($id, $action, $rowVersion)` | Run any invoice action (e.g. `"Issue"`, `"IssueAndGeneratePdf"`). |
+| `action($id, $action, $rowVersion)` | Run any named invoice action, e.g. `"Issue"` or `"IssueAndGeneratePdf"`. The building block for the two helpers below. |
 | `issue($id, $rowVersion)` | Issue the invoice and generate its PDF in one call. Returns the invoice payload. |
-| `pdf($id, $rowVersion)` | Issue and return the raw (base64-decoded) PDF bytes as a string. |
+| `pdf($id, $rowVersion)` | Issue and return the raw, base64-decoded PDF bytes, ready to store or stream. |
 
 ```php
-// 1. Create a draft invoice
+// 1. Create the draft.
 $invoice = Minimax::invoices()->create([
     'CustomerId'  => 1,
     'DateIssued'  => now()->toDateString(),
-    'InvoiceRows' => [ ['ItemId' => 77, 'Quantity' => 1, 'Price' => 50.00, 'VatRateId' => 1] ],
+    'InvoiceRows' => [
+        ['ItemId' => 77, 'Quantity' => 1, 'Price' => 50.00, 'VatRateId' => 1],
+    ],
 ]);
 
-// 2. Issue it and stream the PDF to the browser
+// 2. Issue it and stream the PDF straight to the browser.
 $bytes = Minimax::invoices()->pdf($invoice['IssuedInvoiceId'], $invoice['RowVersion']);
 
 return response($bytes, 200, [
@@ -237,11 +268,13 @@ return response($bytes, 200, [
 ]);
 ```
 
-> **Always pass the current `RowVersion`.** It comes back from `create()`/`find()` and guards against issuing a stale invoice. A mismatch is rejected by the API.
+Always pass the current `RowVersion`. You get it back from `create()` and `find()`, and it's what stops you from issuing a version of the invoice that's already been changed elsewhere. A mismatch is rejected outright, which is the safe outcome.
+
+If you sell gift vouchers or experiences, the VAT treatment on the invoice is a real question, not a formality. Under the EU multi-purpose voucher rules, the sale of the voucher often carries no VAT while delivery does, and the invoice has to reflect that per line. The good news is that your order data already encodes the answer if each line carries its own VAT rate, so build the invoice rows from that rather than assuming a single rate for the whole document.
 
 ## Generic resources
 
-Not every endpoint has a dedicated class. `resource($slug)` binds the full CRUD surface to any org-scoped endpoint at runtime — no new class needed. The admin UI's resource explorer is driven entirely by this plus the `config('minimax.resources')` registry.
+Not every Minimax endpoint has a hand-written class in this package, and it would be busywork to add one for every code list and ledger. `resource($slug)` binds the full CRUD surface to any org-scoped endpoint at runtime, so you can reach journals, accounts, warehouses, and the rest without waiting for a dedicated class.
 
 ```php
 Minimax::resource('journals')->all();
@@ -249,7 +282,7 @@ Minimax::resource('accounts')->find(1);
 Minimax::resource('warehouses')->all()['Rows'];
 ```
 
-Registered slugs ship in the config's `resources` array. Add a line to expose another endpoint in the admin UI:
+The slugs the SDK knows about live in the config `resources` array. That list does double duty: it's what the [admin UI](#admin-ui) offers in its resource browser, and it's the allowlist the [MCP tools](#mcp-for-ai-agents) are restricted to, so an AI agent can't wander into arbitrary endpoints. Add a line to expose another one.
 
 ```php
 // config/minimax.php
@@ -267,7 +300,7 @@ Registered slugs ship in the config's `resources` array. Add a line to expose an
 
 ## Error handling
 
-Any failed request — auth or API — throws `Nejcc\Minimax\MinimaxException`. It carries the HTTP status code and the decoded response body so you can inspect what went wrong.
+Any failed request, whether it's authentication or a data call, throws `Nejcc\Minimax\MinimaxException`. The exception carries the HTTP status code and the decoded response body, so you can tell a "not found" apart from a "your VAT number is invalid" without parsing strings.
 
 ```php
 use Nejcc\Minimax\MinimaxException;
@@ -276,26 +309,29 @@ try {
     $customer = Minimax::customers()->find(999999);
 } catch (MinimaxException $e) {
     $e->getCode();  // HTTP status, e.g. 404
-    $e->body;       // decoded response body (array or string)
+    $e->status;     // the same status, as a typed property
+    $e->body;       // decoded response body — array when Minimax sent JSON
     report($e);
 }
 ```
 
+A couple of habits pay off here. When you log a Minimax failure, log `$e->body` for context but never log the bearer token or the request credentials; the SDK deliberately keeps them out of its own output for the same reason. And if you're calling Minimax from a queued job (which is the right place for it), let the exception bubble so the queue's retry and backoff can handle a transient blip, rather than swallowing it and marking the job done.
+
 ## Admin UI
 
-In the `local` environment the package registers a standalone admin section under `admin/minimax` (configurable via `MINIMAX_ADMIN_PREFIX`). It is never loaded in production.
+In the `local` environment the package mounts a small admin section under `admin/minimax`, configurable with `MINIMAX_ADMIN_PREFIX`. It's gated to local on purpose and never loads in production, so there's no risk of exposing it publicly.
 
 | Route | What it does |
 | --- | --- |
-| `/admin/minimax` | Dashboard — masked status of every `MINIMAX_*` key and credential readiness. No API calls. |
-| `/admin/minimax/diagnostics` | Live connectivity checks: token, organisations, customers. Honours fake mode. |
-| `/admin/minimax/resources/{slug}` | Browse any registered resource's first page as a table. |
+| `/admin/minimax` | Dashboard. Shows a masked status of every `MINIMAX_*` key and whether your credentials are complete. Makes no API calls, so it's safe to open before anything is configured. |
+| `/admin/minimax/diagnostics` | Live connectivity checks: fetch a token, list organisations, list customers. Honours fake mode, so it works offline too. |
+| `/admin/minimax/resources/{slug}` | Browse the first page of any registered resource as a table. |
 
-> Pair the admin UI with [fake mode](#fake-mode) to click through the whole thing before your real credentials land.
+The dashboard is the first place to look when something isn't working. It tells you at a glance whether a credential is missing or an organisation id is unset, without you having to trigger a real call and read a stack trace. Pair it with `MINIMAX_FAKE=true` and you can click through the entire section, diagnostics and resource browser included, before your real credentials land.
 
 ## MCP for AI agents
 
-If `laravel/mcp` is installed, the package registers a local MCP server named `minimax` with three **read-only** tools — `list-organisations`, `list-resource` and `find-record` — so an AI coding agent (Claude Code, Codex, Cursor …) can read the Minimax API directly.
+If `laravel/mcp` is installed, the package registers a local MCP server named `minimax` with three **read-only** tools: `list-organisations`, `list-resource`, and `find-record`. An AI coding agent (Claude Code, Codex, Cursor, and others) can call these to read your Minimax data directly while it works, instead of you copy-pasting records into a chat.
 
 ```bash
 php artisan mcp:start minimax
@@ -311,17 +347,19 @@ Add it to your agent's MCP config alongside any other servers:
 }
 ```
 
-Pair it with `MINIMAX_FAKE=true` to let an agent explore the API with no credentials. Laravel Boost is a separate MCP *server*, not a client — run the two side by side and your agent sees both toolsets. `list-resource` / `find-record` are limited to the slugs in your `resources` registry.
+The tools are read-only by design. An agent can list and inspect records, but it can't issue an invoice or delete a customer, so handing it access carries no risk of a bad edit. `list-resource` and `find-record` are also limited to the slugs in your `resources` registry, which keeps an agent inside the endpoints you've chosen to expose.
+
+One point of confusion worth clearing up: Laravel Boost is a separate MCP *server*, not a client, so it won't absorb these tools. Your agent is the client; point it at both the Boost server and this `minimax` server and it sees both toolsets. Pair the tools with `MINIMAX_FAKE=true` to let an agent explore the API's shape with no credentials.
 
 ## Testing
 
-The SDK uses Laravel's HTTP client, so fake it with `Http::fake()` in your own tests. The package ships 9 tests covering auth, token caching, the Location-follow, invoice PDF decode, `byCode()`, org overrides and error paths.
+The SDK is built on Laravel's HTTP client, which means you test code that uses it the same way you test any outbound HTTP: with `Http::fake()`. There's no special test mode to learn.
 
 ```php
 use Illuminate\Support\Facades\Http;
 
 Http::fake([
-    '*/oauth20/token' => Http::response(['access_token' => 'tok-123', 'expires_in' => 3600]),
+    '*/oauth20/token'      => Http::response(['access_token' => 'tok-123', 'expires_in' => 3600]),
     '*/orgs/123/customers' => Http::response(['Rows' => [['CustomerId' => 1]]]),
 ]);
 
@@ -330,16 +368,15 @@ $rows = Minimax::forOrg(123)->customers()->all()['Rows'];
 Http::assertSent(fn ($req) => $req->hasHeader('Authorization', 'Bearer tok-123'));
 ```
 
-Run the package suite:
+Fake the token endpoint once and every resource call in that test reuses it, so you're not stubbing auth on every assertion. The package itself ships a full suite at 100% line coverage, exercising authentication, token caching, the create-and-follow behaviour, invoice PDF decoding, `byCode()`, organisation overrides, the error paths, the admin UI, and the MCP tools, so the behaviours described in these docs are the behaviours under test.
 
 ```bash
-cd packages/nejcc/minimax-sdk
-../../../vendor/bin/phpunit
+composer test
 ```
 
 ## API reference
 
-Full facade surface at a glance.
+The full facade surface at a glance.
 
 | Call | Signature |
 | --- | --- |
@@ -349,7 +386,7 @@ Full facade surface at a glance.
 | Customers | `customers()->…` |
 | Items | `items()->…` |
 | Orders | `orders()->…` |
-| Invoices | `invoices()->…` + `action(id, action, rowVersion)`, `issue(id, rowVersion)`, `pdf(id, rowVersion)` |
+| Invoices | `invoices()->…` plus `action(id, action, rowVersion)`, `issue(id, rowVersion)`, `pdf(id, rowVersion)` |
 | VAT rates | `vatRates()->byCode('S')` |
 | Currencies | `currencies()->byCode('EUR')` |
 | Countries | `countries()->byCode('SI')` |
