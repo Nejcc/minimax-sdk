@@ -58,6 +58,31 @@ In the `local` environment the package mounts a small dashboard at
 `/admin/minimax` — config status, live diagnostics and a resource browser.
 Handy for checking your setup before wiring the SDK into anything.
 
+## MCP (AI coding agents)
+
+If `laravel/mcp` is installed, the package registers a local MCP server named
+`minimax` with three read-only tools: `list-organisations`, `list-resource`
+and `find-record`. Point any MCP client (Laravel Boost, Claude Code, Codex …)
+at it:
+
+```bash
+php artisan mcp:start minimax
+```
+
+Example client entry (`.mcp.json` / Claude Code):
+
+```json
+{
+  "mcpServers": {
+    "minimax": { "command": "php", "args": ["artisan", "mcp:start", "minimax"] }
+  }
+}
+```
+
+Pair it with `MINIMAX_FAKE=true` to let an agent explore the API shape with no
+credentials. To also expose the server over HTTP, publish and edit the routes:
+`php artisan vendor:publish --tag=minimax-ai-routes`.
+
 ## Docs
 
 Open `docs/index.html` in a browser for the full reference.

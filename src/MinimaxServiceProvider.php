@@ -46,6 +46,17 @@ final class MinimaxServiceProvider extends ServiceProvider
             $this->publishes([
                 __DIR__.'/../config/minimax.php' => $this->app->configPath('minimax.php'),
             ], 'minimax-config');
+
+            $this->publishes([
+                __DIR__.'/../routes/ai.php' => $this->app->basePath('routes/minimax-ai.php'),
+            ], 'minimax-ai-routes');
+        }
+
+        // Register the MCP server so AI coding agents (Laravel Boost, Claude,
+        // Codex, …) can read the Minimax API. Optional: only wires up when
+        // laravel/mcp is installed. Start it with `php artisan mcp:start minimax`.
+        if (class_exists(\Laravel\Mcp\Server::class)) {
+            \Laravel\Mcp\Facades\Mcp::local('minimax', \Nejcc\Minimax\Mcp\MinimaxServer::class);
         }
 
         // Local-only standalone admin UI (dashboard, diagnostics, error pages).

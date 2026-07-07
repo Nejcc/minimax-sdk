@@ -29,8 +29,12 @@
         "illuminate/http": "^13.0"
     },
     "require-dev": {
+        "laravel/mcp": "^0.8",
         "orchestra/testbench": "^11.0",
         "phpunit/phpunit": "^12.0"
+    },
+    "suggest": {
+        "laravel/mcp": "Exposes the Minimax API to AI coding agents (Boost, Claude, Codex) via an MCP server."
     },
     "scripts": {
         "test": "phpunit"
