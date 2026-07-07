@@ -1,0 +1,610 @@
+<!doctype html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Minimax SDK — Documentation</title>
+    <meta name="description" content="Laravel SDK for the Minimax accounting API (SI/HR/RS). OAuth2 auth, invoices, orders, customers, items and code lists.">
+
+    <!-- Avoid dark-mode flash: set the theme before paint. -->
+    <script>
+        (function () {
+            const t = localStorage.getItem('minimax-theme');
+            if (t === 'dark' || (!t && matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+            }
+        })();
+    </script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css">
+
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
+
+    <style type="text/tailwindcss">
+        @custom-variant dark (&:where(.dark, .dark *));
+        @theme {
+            --color-brand: #f53003;
+            --color-brand-dark: #c72400;
+            --font-sans: 'Figtree', ui-sans-serif, system-ui, sans-serif;
+        }
+        html { scroll-padding-top: 5rem; }
+        [v-cloak] { display: none; }
+
+        /* Themed scrollbars (Firefox + WebKit), light/dark aware */
+        * { scrollbar-width: thin; scrollbar-color: #d4d4d4 transparent; }
+        .dark * { scrollbar-color: #404040 transparent; }
+        ::-webkit-scrollbar { width: 9px; height: 9px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #d4d4d4; border-radius: 9999px; border: 2px solid transparent; background-clip: content-box; }
+        ::-webkit-scrollbar-thumb:hover { background: #a3a3a3; background-clip: content-box; }
+        .dark ::-webkit-scrollbar-thumb { background: #404040; background-clip: content-box; }
+        .dark ::-webkit-scrollbar-thumb:hover { background: #525252; background-clip: content-box; }
+
+        /* Rendered-markdown styles */
+        .md h1 { @apply text-4xl font-extrabold tracking-tight text-neutral-900; }
+        .md h2 { @apply mt-16 scroll-mt-20 border-t border-neutral-100 pt-10 text-2xl font-bold text-neutral-900; }
+        .md h3 { @apply mt-8 scroll-mt-20 text-lg font-semibold text-neutral-900; }
+        .md p  { @apply mt-4 leading-relaxed text-neutral-600; }
+        .md ul { @apply mt-4 list-disc space-y-1.5 pl-6 text-neutral-600; }
+        .md li > p { @apply mt-0; }
+        .md a  { @apply font-medium text-brand no-underline hover:underline; }
+        .md strong { @apply font-semibold text-neutral-900; }
+        .md em { @apply italic; }
+        .md :not(pre) > code { @apply rounded bg-neutral-100 px-1.5 py-0.5 font-mono text-[0.85em] text-brand-dark; }
+        .md pre { @apply relative mt-4; }
+        .md pre > code { @apply rounded-xl text-sm leading-relaxed; }
+        .md pre > code.hljs { @apply rounded-xl p-5; }
+        .md blockquote { @apply mt-5 rounded-r-xl border-l-4 border-brand bg-brand/5 p-4 text-sm text-neutral-700; }
+        .md blockquote p { @apply mt-0 text-neutral-700; }
+        .md blockquote p + p { @apply mt-2; }
+        .md table { @apply mt-4 block w-full overflow-x-auto border-collapse text-left text-sm sm:table; }
+        .md thead { @apply bg-neutral-50; }
+        .md th { @apply whitespace-nowrap border border-neutral-200 px-4 py-3 font-semibold text-neutral-700; }
+        .md td { @apply border border-neutral-100 px-4 py-3 align-top text-neutral-600; }
+        .md hr { @apply mt-10 border-neutral-200; }
+
+        @variant dark {
+            .md h1, .md h2, .md h3, .md strong { @apply text-white; }
+            .md h2 { @apply border-neutral-800; }
+            .md p, .md ul, .md td, .md blockquote p { @apply text-neutral-400; }
+            .md :not(pre) > code { @apply bg-neutral-800 text-orange-300; }
+            .md blockquote { @apply bg-brand/10 text-neutral-300; }
+            .md thead { @apply bg-neutral-900; }
+            .md th { @apply border-neutral-800 text-neutral-300; }
+            .md td { @apply border-neutral-800; }
+            .md hr { @apply border-neutral-800; }
+        }
+
+        .copy { @apply absolute right-3 top-3 z-10 cursor-pointer rounded-md border border-white/15 bg-white/10 px-2.5 py-1 text-xs font-medium text-neutral-300 opacity-0 transition hover:bg-white/20 hover:text-white; }
+        .md pre:hover .copy { @apply opacity-100; }
+        .hljs { border-radius: 0.75rem; }
+        .hljs::-webkit-scrollbar-thumb { background: #4b5563; background-clip: content-box; }
+        .hljs { scrollbar-color: #4b5563 transparent; }
+    </style>
+</head>
+<body class="bg-white font-sans text-neutral-700 antialiased dark:bg-neutral-950 dark:text-neutral-300">
+
+<!-- Docs source, embedded so the page is standalone (no fetch / no server).
+     Canonical copy lives in minimax-sdk.md — keep the two in sync. -->
+<script type="text/markdown" id="doc-source">
+# Minimax SDK
+
+A fluent Laravel SDK for the **Minimax** accounting API — the cloud accounting platform used across Slovenia (SI), Croatia (HR) and Serbia (RS). It handles OAuth2 authentication and token caching for you, and exposes issued invoices, orders, customers, items and every code list through a small, expressive fluent API.
+
+- **Zero-config auth** — OAuth2 password grant with automatic, leeway-aware token caching.
+- **Fake mode** — canned fixtures so the SDK and admin UI run end-to-end before your credentials arrive.
+- **Fluent resources** — typed CRUD helpers plus a generic escape hatch for any endpoint.
+- **Local admin UI** — a dashboard, live diagnostics and a browsable resource explorer, local env only.
+
+## Requirements
+
+- PHP **8.4+**
+- Laravel **13** (`illuminate/support` & `illuminate/http` ^13.0)
+- Minimax OAuth2 credentials (from Minimax support) and an application-specific password
+
+> No credentials yet? Skip straight to [Fake mode](#fake-mode) — the whole SDK works offline against canned fixtures.
+
+## Installation
+
+This package lives inside the app as a path repository. Point Composer at it in the root `composer.json`:
+
+```json
+"repositories": [
+    { "type": "path", "url": "packages/nejcc/minimax-sdk" }
+],
+"require": {
+    "nejcc/minimax-sdk": "@dev"
+}
+```
+
+Then install and publish the config file:
+
+```bash
+composer update nejcc/minimax-sdk
+
+php artisan vendor:publish --tag=minimax-config
+```
+
+The service provider and the `Minimax` facade alias are auto-discovered via Laravel package discovery — nothing to register manually.
+
+## Configuration
+
+All configuration is driven by environment variables. Add these to your `.env`:
+
+```dotenv
+MINIMAX_LOCALIZATION=SI          # SI | HR | RS
+MINIMAX_CLIENT_ID=...            # from Minimax support
+MINIMAX_CLIENT_SECRET=...        # from Minimax support
+MINIMAX_USERNAME=...             # application-specific password user
+MINIMAX_PASSWORD=...             # application-specific password
+MINIMAX_SCOPE=minimax.si
+MINIMAX_ORG_ID=123456            # default organisation
+MINIMAX_FAKE=false               # true = offline fixtures
+MINIMAX_TOKEN_LEEWAY=30          # seconds shaved off token TTL
+MINIMAX_ADMIN_PREFIX=admin/minimax
+```
+
+### Config reference
+
+| Key | Default | Description |
+| --- | --- | --- |
+| `localization` | `SI` | Country of your account — drives the token & API base URLs. |
+| `client_id` / `client_secret` | — | OAuth2 client credentials, provided by Minimax support. |
+| `username` / `password` | — | Application-specific password from login.minimax.si/Profile. |
+| `scope` | `minimax.si` | OAuth2 scope requested with the token. |
+| `org_id` | `null` | Default organisation for org-scoped resources. Override per call with `forOrg()`. |
+| `fake` | `false` | Return canned fixtures instead of sending HTTP. See [Fake mode](#fake-mode). |
+| `token_leeway` | `30` | Seconds subtracted from `expires_in` so a token never expires mid-flight. |
+| `admin_prefix` | `admin/minimax` | URL prefix for the local admin UI. |
+| `resources` | 13 slugs | Registry of org-scoped endpoints browsable in the admin UI. See [Generic resources](#generic-resources). |
+
+## Authentication
+
+The SDK authenticates via the OAuth2 **password grant** and caches the access token (keyed by client + user) until shortly before it expires. You never call the token endpoint yourself — every request transparently attaches a valid `Bearer` token.
+
+```php
+use Nejcc\Minimax\Facades\Minimax;
+
+// Force a token (usually you never need this — requests do it for you)
+$token = Minimax::client()->token();
+```
+
+Base URLs are derived from your localization, e.g. for `SI`:
+
+- Token: `https://moj.minimax.si/SI/AUT/oauth20/token`
+- API: `https://moj.minimax.si/SI/API/api/…`
+
+> The cache uses your default store. Token TTL is `expires_in − token_leeway`, so with the default 30s leeway you never send a token that dies in transit.
+
+## Fake mode
+
+Set `MINIMAX_FAKE=true` and the SDK sends **no HTTP at all** — it returns canned fixtures instead. This lets you build against the SDK, run the diagnostics page, and browse the resource explorer before real credentials exist.
+
+```php
+// .env
+MINIMAX_FAKE=true
+
+// Works with no credentials — returns fixture rows
+Minimax::forOrg(123456)->customers()->all();
+// => ['Rows' => [ ['CustomerId' => 1, 'Name' => 'Demo Customer d.o.o.', ...], ... ]]
+```
+
+> Fake mode is a coarse path matcher, not a full API simulator. It stubs the common list/create/issue paths — enough to exercise the SDK. Turn it off once credentials are in place.
+
+## Quick start
+
+Everything goes through the `Minimax` facade. Resources are org-scoped and return plain arrays using Minimax's own field names.
+
+```php
+use Nejcc\Minimax\Facades\Minimax;
+
+// List the organisations your user can access
+$orgs = Minimax::orgs()->all();
+
+// List customers in the default org (MINIMAX_ORG_ID)
+$customers = Minimax::customers()->all()['Rows'];
+
+// Work against a specific org for one chain
+$items = Minimax::forOrg(654321)->items()->all();
+
+// Create + issue an invoice, then grab the PDF bytes
+$invoice = Minimax::invoices()->create([...]);
+$pdf     = Minimax::invoices()->pdf($invoice['IssuedInvoiceId'], $invoice['RowVersion']);
+```
+
+## The manager
+
+`Minimax` (resolved via the facade or type-hint) is the entry point. It carries the current organisation context and hands you resource objects.
+
+| Method | Returns | Notes |
+| --- | --- | --- |
+| `forOrg($orgId)` | `Minimax` | Immutable clone scoped to a different org. |
+| `orgs()` | `Orgs` | Not org-scoped. |
+| `customers()` | `Customers` | Org-scoped CRUD. |
+| `items()` | `Items` | Org-scoped CRUD. |
+| `invoices()` | `Invoices` | CRUD + issue/pdf actions. |
+| `orders()` | `Orders` | Org-scoped CRUD. |
+| `vatRates()` | `VatRates` | Code list. |
+| `currencies()` | `Currencies` | Code list. |
+| `countries()` | `Countries` | Code list. |
+| `reportTemplates()` | `ReportTemplates` | Code list. |
+| `resource($slug)` | `Generic` | Any endpoint by slug — see [Generic resources](#generic-resources). |
+| `client()` | `Client` | The low-level HTTP client. |
+
+> Org-scoped resources throw `MinimaxException` if no org is set. Configure `MINIMAX_ORG_ID` or call `forOrg($id)` first.
+
+## CRUD basics
+
+Every org-scoped resource (`customers`, `items`, `orders`, `invoices`, code lists and generic slugs) shares the same base CRUD surface. Records are plain arrays with Minimax field names.
+
+| Method | HTTP | Description |
+| --- | --- | --- |
+| `all($query = [])` | GET | List records; pass query params for paging/filtering. |
+| `find($id)` | GET | Fetch one record by id. |
+| `byCode($code, $query = [])` | GET | Fetch one record by its business code, e.g. VAT rate "S". |
+| `create($data)` | POST | Create; follows the `Location` header and returns the created entity. |
+| `update($id, $data)` | PUT | Replace a record. |
+| `delete($id)` | DELETE | Delete a record (returns an empty array). |
+
+```php
+$rows     = Minimax::customers()->all(['PageSize' => 50])['Rows'];
+$customer = Minimax::customers()->find(1);
+$created  = Minimax::customers()->create(['Name' => 'ACME d.o.o.', ...]);
+Minimax::customers()->update($created['CustomerId'], ['Name' => 'ACME Ltd']);
+Minimax::customers()->delete($created['CustomerId']);
+```
+
+> **Create follows the Location header.** A `201 Created` response returns the created entity by following the `Location` URL — so `create()` gives you the full record, including its `RowVersion`.
+
+## Organisations
+
+`orgs()` is the only resource that isn't org-scoped — it lives under `currentuser/orgs` and lists every organisation the authenticated user can access. Use it to discover your `MINIMAX_ORG_ID`.
+
+```php
+$rows = Minimax::orgs()->all()['Rows'];
+
+foreach ($rows as $row) {
+    $row['Organisation']['ID'];   // e.g. 123456
+    $row['Organisation']['Name']; // e.g. "Demo d.o.o."
+}
+```
+
+## Customers, Items & Orders
+
+These are plain CRUD resources — nothing beyond the [base surface](#crud-basics). They map to `customers`, `items` and `orders`.
+
+```php
+Minimax::customers()->all();
+Minimax::items()->find(77);
+Minimax::orders()->create([
+    'CustomerId' => 1,
+    'Rows'       => [ ['ItemId' => 77, 'Quantity' => 2, 'Price' => 50.00] ],
+]);
+```
+
+## Code lists
+
+`vatRates()`, `currencies()`, `countries()` and `reportTemplates()` are read-oriented code lists. They support the full CRUD surface, but `byCode()` is the useful one — resolve a record by its business code.
+
+```php
+// Resolve the standard 22% VAT rate by its code
+$vat = Minimax::vatRates()->byCode('S');
+// => ['VatRateId' => 1, 'Percent' => 22, ...]
+
+$eur = Minimax::currencies()->byCode('EUR');
+$si  = Minimax::countries()->byCode('SI');
+```
+
+## Invoices
+
+`invoices()` maps to `issuedinvoices` and adds three helpers on top of CRUD. Minimax invoices are created in a draft state, then *issued* — a state-changing action guarded by the record's `RowVersion` (optimistic concurrency).
+
+| Method | Description |
+| --- | --- |
+| `action($id, $action, $rowVersion)` | Run any invoice action (e.g. `"Issue"`, `"IssueAndGeneratePdf"`). |
+| `issue($id, $rowVersion)` | Issue the invoice and generate its PDF in one call. Returns the invoice payload. |
+| `pdf($id, $rowVersion)` | Issue and return the raw (base64-decoded) PDF bytes as a string. |
+
+```php
+// 1. Create a draft invoice
+$invoice = Minimax::invoices()->create([
+    'CustomerId'  => 1,
+    'DateIssued'  => now()->toDateString(),
+    'InvoiceRows' => [ ['ItemId' => 77, 'Quantity' => 1, 'Price' => 50.00, 'VatRateId' => 1] ],
+]);
+
+// 2. Issue it and stream the PDF to the browser
+$bytes = Minimax::invoices()->pdf($invoice['IssuedInvoiceId'], $invoice['RowVersion']);
+
+return response($bytes, 200, [
+    'Content-Type'        => 'application/pdf',
+    'Content-Disposition' => 'inline; filename="invoice.pdf"',
+]);
+```
+
+> **Always pass the current `RowVersion`.** It comes back from `create()`/`find()` and guards against issuing a stale invoice. A mismatch is rejected by the API.
+
+## Generic resources
+
+Not every endpoint has a dedicated class. `resource($slug)` binds the full CRUD surface to any org-scoped endpoint at runtime — no new class needed. The admin UI's resource explorer is driven entirely by this plus the `config('minimax.resources')` registry.
+
+```php
+Minimax::resource('journals')->all();
+Minimax::resource('accounts')->find(1);
+Minimax::resource('warehouses')->all()['Rows'];
+```
+
+Registered slugs ship in the config's `resources` array. Add a line to expose another endpoint in the admin UI:
+
+```php
+// config/minimax.php
+'resources' => [
+    'issuedinvoices' => 'Issued Invoices',
+    'orders'         => 'Orders',
+    'customers'      => 'Customers',
+    'items'          => 'Items',
+    'accounts'       => 'Accounts',
+    'journals'       => 'Journals',
+    'warehouses'     => 'Warehouses',
+    // 'documentnumbering' => 'Document Numbering',  // add your own
+],
+```
+
+## Error handling
+
+Any failed request — auth or API — throws `Nejcc\Minimax\MinimaxException`. It carries the HTTP status code and the decoded response body so you can inspect what went wrong.
+
+```php
+use Nejcc\Minimax\MinimaxException;
+
+try {
+    $customer = Minimax::customers()->find(999999);
+} catch (MinimaxException $e) {
+    $e->getCode();  // HTTP status, e.g. 404
+    $e->body;       // decoded response body (array or string)
+    report($e);
+}
+```
+
+## Admin UI
+
+In the `local` environment the package registers a standalone admin section under `admin/minimax` (configurable via `MINIMAX_ADMIN_PREFIX`). It is never loaded in production.
+
+| Route | What it does |
+| --- | --- |
+| `/admin/minimax` | Dashboard — masked status of every `MINIMAX_*` key and credential readiness. No API calls. |
+| `/admin/minimax/diagnostics` | Live connectivity checks: token, organisations, customers. Honours fake mode. |
+| `/admin/minimax/resources/{slug}` | Browse any registered resource's first page as a table. |
+
+> Pair the admin UI with [fake mode](#fake-mode) to click through the whole thing before your real credentials land.
+
+## Testing
+
+The SDK uses Laravel's HTTP client, so fake it with `Http::fake()` in your own tests. The package ships 9 tests covering auth, token caching, the Location-follow, invoice PDF decode, `byCode()`, org overrides and error paths.
+
+```php
+use Illuminate\Support\Facades\Http;
+
+Http::fake([
+    '*/oauth20/token' => Http::response(['access_token' => 'tok-123', 'expires_in' => 3600]),
+    '*/orgs/123/customers' => Http::response(['Rows' => [['CustomerId' => 1]]]),
+]);
+
+$rows = Minimax::forOrg(123)->customers()->all()['Rows'];
+
+Http::assertSent(fn ($req) => $req->hasHeader('Authorization', 'Bearer tok-123'));
+```
+
+Run the package suite:
+
+```bash
+cd packages/nejcc/minimax-sdk
+../../../vendor/bin/phpunit
+```
+
+## API reference
+
+Full facade surface at a glance.
+
+| Call | Signature |
+| --- | --- |
+| Manager | `forOrg(orgId)`, `client()`, `resource(slug)` |
+| Orgs | `orgs()->all()` |
+| CRUD (all resources) | `all(query)`, `find(id)`, `byCode(code, query)`, `create(data)`, `update(id, data)`, `delete(id)` |
+| Customers | `customers()->…` |
+| Items | `items()->…` |
+| Orders | `orders()->…` |
+| Invoices | `invoices()->…` + `action(id, action, rowVersion)`, `issue(id, rowVersion)`, `pdf(id, rowVersion)` |
+| VAT rates | `vatRates()->byCode('S')` |
+| Currencies | `currencies()->byCode('EUR')` |
+| Countries | `countries()->byCode('SI')` |
+| Report templates | `reportTemplates()->…` |
+| Generic | `resource('journals')->…` |
+| Client | `client()->token()`, `client()->request(method, path, body, query)` |
+</script>
+
+<div id="app" v-cloak>
+
+    <header class="fixed inset-x-0 top-0 z-40 h-16 border-b border-neutral-200 bg-white/90 backdrop-blur dark:border-neutral-800 dark:bg-neutral-950/90">
+        <div class="mx-auto flex h-full max-w-7xl items-center gap-4 px-4 sm:px-6">
+            <button class="-ml-1 rounded p-2 text-neutral-600 hover:bg-neutral-100 lg:hidden dark:text-neutral-300 dark:hover:bg-neutral-800" @click="mobileOpen = !mobileOpen" aria-label="Toggle menu">
+                <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
+            </button>
+            <a href="#" class="flex items-center gap-2.5 font-semibold">
+                <span class="grid h-8 w-8 place-items-center rounded-lg bg-brand font-bold text-white">M</span>
+                <span class="text-neutral-900 dark:text-white">Minimax SDK</span>
+                <span class="hidden rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-500 sm:inline dark:bg-neutral-800 dark:text-neutral-400">13.x</span>
+            </a>
+            <div class="ml-auto flex items-center gap-3">
+                <span class="hidden text-sm text-neutral-400 md:inline">Laravel 13 · PHP 8.4+</span>
+                <button @click="toggleTheme" class="rounded-lg border border-neutral-200 p-2 text-neutral-600 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800" aria-label="Toggle theme">
+                    <svg v-if="dark" class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z"/></svg>
+                    <svg v-else class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/></svg>
+                </button>
+                <a href="https://github.com/nejcc" class="rounded-lg border border-neutral-200 px-3 py-1.5 text-sm font-medium text-neutral-600 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800">GitHub</a>
+            </div>
+        </div>
+    </header>
+
+    <div class="mx-auto flex max-w-7xl px-0 sm:px-6">
+        <aside
+            class="fixed inset-y-0 left-0 z-30 w-72 shrink-0 overflow-y-auto border-r border-neutral-200 bg-white px-4 pb-10 pt-20 transition-transform lg:sticky lg:top-16 lg:z-0 lg:h-[calc(100vh-4rem)] lg:tranneutral-x-0 lg:border-r-0 lg:pt-6 dark:border-neutral-800 dark:bg-neutral-950"
+            :class="mobileOpen ? 'tranneutral-x-0 shadow-2xl' : '-tranneutral-x-full'">
+            <div class="relative mb-5">
+                <input v-model="q" type="search" placeholder="Filter docs…"
+                       class="w-full rounded-lg border border-neutral-200 bg-neutral-50 py-2 pl-9 pr-3 text-sm outline-none focus:border-brand focus:bg-white focus:ring-2 focus:ring-brand/20 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:focus:bg-neutral-900">
+                <svg class="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-neutral-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.3-4.3M11 19a8 8 0 100-16 8 8 0 000 16z"/></svg>
+            </div>
+            <nav class="space-y-6">
+                <div v-for="group in filteredNav" :key="group.title">
+                    <p class="mb-2 px-2 text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">{{ group.title }}</p>
+                    <ul class="space-y-0.5 border-l border-neutral-100 dark:border-neutral-800">
+                        <li v-for="item in group.items" :key="item.id">
+                            <a :href="'#' + item.id" @click="mobileOpen = false"
+                               class="-ml-px block border-l-2 py-1.5 pl-3 text-sm transition"
+                               :class="active === item.id
+                                   ? 'border-brand font-semibold text-brand'
+                                   : 'border-transparent text-neutral-600 hover:border-neutral-300 hover:text-neutral-900 dark:text-neutral-400 dark:hover:border-neutral-600 dark:hover:text-white'">
+                                {{ item.label }}
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+                <p v-if="!filteredNav.length" class="px-2 text-sm text-neutral-400">No matches.</p>
+            </nav>
+        </aside>
+
+        <div v-if="mobileOpen" @click="mobileOpen = false" class="fixed inset-0 z-20 bg-neutral-900/40 lg:hidden"></div>
+
+        <main class="min-w-0 flex-1 px-5 pb-32 pt-24 sm:px-8 lg:pt-10">
+            <div class="mx-auto max-w-3xl">
+                <article ref="body" class="md" v-html="html"></article>
+            </div>
+        </main>
+
+        <!-- Right rail: "On this page" (Laravel-style secondary nav) -->
+        <aside class="sticky top-16 hidden h-[calc(100vh-4rem)] w-56 shrink-0 overflow-y-auto py-10 pl-6 xl:block">
+            <p class="mb-3 text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">On this page</p>
+            <ul class="space-y-1 border-l border-neutral-100 dark:border-neutral-800">
+                <li v-for="h in toc" :key="h.id">
+                    <a :href="'#' + h.id"
+                       class="-ml-px block border-l-2 py-1 text-sm transition"
+                       :class="[
+                           h.level === 3 ? 'pl-6' : 'pl-3',
+                           activeToc === h.id
+                               ? 'border-brand font-medium text-brand'
+                               : 'border-transparent text-neutral-500 hover:border-neutral-300 hover:text-neutral-900 dark:hover:border-neutral-600 dark:hover:text-white'
+                       ]">
+                        {{ h.label }}
+                    </a>
+                </li>
+            </ul>
+        </aside>
+    </div>
+</div>
+
+<script>
+    const { createApp } = Vue;
+    const slugify = (t) => t.toLowerCase().trim().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-');
+
+    // Laravel-style grouped sidebar. Section ids are the slugified h2 headings;
+    // labels come from the rendered markdown so this stays content-driven.
+    const GROUPS = [
+        { title: 'Getting Started', ids: ['requirements', 'installation', 'configuration'] },
+        { title: 'Core Concepts',   ids: ['authentication', 'fake-mode', 'quick-start', 'the-manager'] },
+        { title: 'Resources',       ids: ['crud-basics', 'organisations', 'customers-items-orders', 'code-lists', 'invoices', 'generic-resources'] },
+        { title: 'Tooling',         ids: ['error-handling', 'admin-ui', 'testing'] },
+        { title: 'Reference',       ids: ['api-reference'] },
+    ];
+
+    createApp({
+        data() {
+            return {
+                q: '', active: '', activeToc: '', mobileOpen: false, html: '', nav: [], toc: [],
+                dark: document.documentElement.classList.contains('dark'),
+            };
+        },
+        computed: {
+            filteredNav() {
+                const q = this.q.trim().toLowerCase();
+                if (!q) return this.nav;
+                return this.nav
+                    .map(g => ({ ...g, items: g.items.filter(i => i.label.toLowerCase().includes(q) || g.title.toLowerCase().includes(q)) }))
+                    .filter(g => g.items.length);
+            },
+        },
+        methods: {
+            toggleTheme() {
+                this.dark = !this.dark;
+                document.documentElement.classList.toggle('dark', this.dark);
+                localStorage.setItem('minimax-theme', this.dark ? 'dark' : 'light');
+            },
+        },
+        async mounted() {
+            // Read the markdown embedded in this file (see #doc-source) so the
+            // page is fully standalone — no fetch, works straight off file://.
+            const md = document.getElementById('doc-source').textContent;
+
+            this.html = marked.parse(md, { mangle: false, headerIds: false });
+            await this.$nextTick();
+            const body = this.$refs.body;
+
+            // Assign ids to headings; collect h2 labels + a flat TOC (h2 + h3).
+            const labels = {};
+            const toc = [];
+            body.querySelectorAll('h2, h3').forEach(h => {
+                h.id = slugify(h.textContent);
+                if (h.tagName === 'H2') labels[h.id] = h.textContent;
+                toc.push({ id: h.id, label: h.textContent, level: h.tagName === 'H3' ? 3 : 2 });
+            });
+            this.toc = toc;
+
+            // Build grouped nav from GROUPS, keeping only sections that exist.
+            const claimed = new Set();
+            this.nav = GROUPS.map(g => ({
+                title: g.title,
+                items: g.ids.filter(id => labels[id]).map(id => { claimed.add(id); return { id, label: labels[id] }; }),
+            })).filter(g => g.items.length);
+            // Any stray h2 not mapped above → append so nothing is hidden.
+            const stray = Object.keys(labels).filter(id => !claimed.has(id)).map(id => ({ id, label: labels[id] }));
+            if (stray.length) this.nav.push({ title: 'More', items: stray });
+
+            // Syntax highlighting + copy buttons.
+            hljs.registerAliases(['dotenv', 'env'], { languageName: 'ini' });
+            body.querySelectorAll('pre > code').forEach(code => {
+                hljs.highlightElement(code);
+                const btn = document.createElement('button');
+                btn.className = 'copy';
+                btn.textContent = 'Copy';
+                btn.addEventListener('click', async () => {
+                    await navigator.clipboard.writeText(code.innerText);
+                    btn.textContent = 'Copied!';
+                    setTimeout(() => (btn.textContent = 'Copy'), 1200);
+                });
+                code.parentElement.appendChild(btn);
+            });
+
+            // Scrollspy: left nav tracks h2 sections, right rail tracks every heading.
+            const spyOn = (nodes, set) => {
+                const io = new IntersectionObserver((entries) => {
+                    entries.forEach(e => { if (e.isIntersecting) set(e.target.id); });
+                }, { rootMargin: '-72px 0px -70% 0px', threshold: 0 });
+                nodes.forEach(n => io.observe(n));
+                if (nodes[0]) set(nodes[0].id);
+            };
+            const sectionIds = this.nav.flatMap(g => g.items.map(i => i.id));
+            spyOn(sectionIds.map(id => document.getElementById(id)).filter(Boolean), id => this.active = id);
+            spyOn(toc.map(t => document.getElementById(t.id)).filter(Boolean), id => this.activeToc = id);
+
+            if (location.hash) document.getElementById(location.hash.slice(1))?.scrollIntoView();
+        },
+    }).mount('#app');
+</script>
+</body>
+</html>
