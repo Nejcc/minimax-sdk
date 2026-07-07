@@ -1,0 +1,40 @@
+{
+    "name": "nejcc/minimax-sdk",
+    "description": "Laravel SDK for the Minimax accounting API (SI/HR/RS): OAuth2 auth and issued invoices, orders, customers, items and code lists.",
+    "type": "library",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "Nejcc\\Minimax\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Nejcc\\Minimax\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Nejcc\\Minimax\\MinimaxServiceProvider"
+            ],
+            "aliases": {
+                "Minimax": "Nejcc\\Minimax\\Facades\\Minimax"
+            }
+        }
+    },
+    "require": {
+        "php": "^8.4",
+        "illuminate/support": "^13.0",
+        "illuminate/http": "^13.0"
+    },
+    "require-dev": {
+        "orchestra/testbench": "^11.0",
+        "phpunit/phpunit": "^12.0"
+    },
+    "scripts": {
+        "test": "phpunit"
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}
