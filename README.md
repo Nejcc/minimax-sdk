@@ -121,6 +121,15 @@ credentials. To also expose the server over HTTP, publish and edit the routes:
 composer test
 ```
 
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for release notes.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md), and ask questions in
+[Discussions](https://github.com/Nejcc/minimax-sdk/discussions).
+
 ## Security
 
 Please report vulnerabilities privately — see [SECURITY.md](SECURITY.md).
