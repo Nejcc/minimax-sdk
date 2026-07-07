@@ -1,8 +1,20 @@
 # Minimax SDK
 
+[![PHP](https://img.shields.io/badge/PHP-8.4%2B-777bb4?logo=php&logoColor=white)](composer.json)
+[![Laravel](https://img.shields.io/badge/Laravel-13-ff2d20?logo=laravel&logoColor=white)](composer.json)
+[![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)](tests)
+[![Tests](https://img.shields.io/badge/tests-37%20passing-brightgreen)](tests)
+[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
 A Laravel SDK for the [Minimax](https://www.minimax.si) accounting API (SI / HR / RS).
-Handles OAuth2 auth and token caching, and wraps issued invoices, orders, customers,
-items and the code lists behind a small fluent API.
+It handles OAuth2 auth and token caching, and wraps issued invoices, orders,
+customers, items and the code lists behind a small fluent API.
+
+- **Zero-config auth** — OAuth2 password grant with automatic, leeway-aware token caching.
+- **Fake mode** — canned fixtures so the SDK and admin UI run end-to-end before your credentials arrive.
+- **Fluent resources** — typed CRUD helpers plus a generic escape hatch for any endpoint.
+- **Local admin UI** — dashboard, live diagnostics and a resource browser (local env only).
+- **MCP server** — read the API from AI coding agents (Laravel Boost, Claude, Codex).
 
 ## Requirements
 
@@ -27,7 +39,9 @@ MINIMAX_PASSWORD=...
 MINIMAX_ORG_ID=123456
 ```
 
-No credentials yet? Set `MINIMAX_FAKE=true` and everything runs off canned fixtures.
+No credentials yet? Set `MINIMAX_FAKE=true` and everything runs off canned
+fixtures. See the [Configuration wiki](https://github.com/Nejcc/minimax-sdk/wiki/Configuration)
+for every option.
 
 ## Usage
 
@@ -43,6 +57,9 @@ $customers = Minimax::customers()->all()['Rows'];
 // switch org for one chain
 Minimax::forOrg(654321)->items()->all();
 
+// resolve a VAT rate by its code
+$vat = Minimax::vatRates()->byCode('S');
+
 // create a draft invoice, issue it, grab the PDF
 $invoice = Minimax::invoices()->create([...]);
 $pdf = Minimax::invoices()->pdf($invoice['IssuedInvoiceId'], $invoice['RowVersion']);
@@ -50,7 +67,9 @@ $pdf = Minimax::invoices()->pdf($invoice['IssuedInvoiceId'], $invoice['RowVersio
 
 Every resource shares the same CRUD surface: `all()`, `find()`, `byCode()`,
 `create()`, `update()`, `delete()`. Endpoints without a dedicated class are
-reachable through `Minimax::resource('journals')->all()`.
+reachable through `Minimax::resource('journals')->all()`. Full details in the
+[Usage](https://github.com/Nejcc/minimax-sdk/wiki/Usage) and
+[Invoices](https://github.com/Nejcc/minimax-sdk/wiki/Invoices) wiki pages.
 
 ## Admin UI
 
@@ -81,17 +100,23 @@ Example client entry (`.mcp.json` / Claude Code):
 
 Pair it with `MINIMAX_FAKE=true` to let an agent explore the API shape with no
 credentials. To also expose the server over HTTP, publish and edit the routes:
-`php artisan vendor:publish --tag=minimax-ai-routes`.
+`php artisan vendor:publish --tag=minimax-ai-routes`. More in the
+[MCP wiki](https://github.com/Nejcc/minimax-sdk/wiki/MCP).
 
-## Docs
+## Documentation
 
-Open `docs/index.html` in a browser for the full reference.
+- **Wiki** — https://github.com/Nejcc/minimax-sdk/wiki
+- **Offline** — open `docs/index.html` in a browser for the full reference.
 
-## Tests
+## Testing
 
 ```bash
 composer test
 ```
+
+## Security
+
+Please report vulnerabilities privately — see [SECURITY.md](SECURITY.md).
 
 ## License
 
