@@ -82,12 +82,16 @@ Handy for checking your setup before wiring the SDK into anything.
 
 If `laravel/mcp` is installed, the package registers a local MCP server named
 `minimax` with three read-only tools: `list-organisations`, `list-resource`
-and `find-record`. Point any MCP client (Laravel Boost, Claude Code, Codex …)
-at it:
+and `find-record`. Point your AI coding agent — the MCP **client** (Claude Code,
+Codex, Cursor …) — at it:
 
 ```bash
 php artisan mcp:start minimax
 ```
+
+> **Laravel Boost?** Boost is a separate MCP *server* (its own dev tools), not a
+> client, so it won't absorb these tools. Run the two side by side — add both to
+> your agent's config and it sees both toolsets.
 
 Example client entry (`.mcp.json` / Claude Code):
 
