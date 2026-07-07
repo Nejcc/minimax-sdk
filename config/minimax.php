@@ -66,4 +66,20 @@ return [
     | send a token that expires mid-flight.
     */
     'token_leeway' => env('MINIMAX_TOKEN_LEEWAY', 30),
+
+    /*
+    | Host-app auto-invoicing (optional). When enabled, the application issues a
+    | Minimax invoice as soon as an order is paid. This SDK does not act on these
+    | keys itself — they drive the host app's integration (e.g. a listener on its
+    | own paid-order hook). Off by default. 'auto_invoice_queue' chooses whether
+    | that work runs on the queue (recommended) or inline.
+    |
+    | The host integration is expected to expose extension points, e.g.:
+    |   action  minimax.invoice.before_issue ($order)
+    |   filter  minimax.invoice.payload      ($payload, $order)
+    |   action  minimax.invoice.after_issue  ($order, $created)
+    |   action  minimax.invoice.failed       ($order, $exception)
+    */
+    'auto_invoice' => env('MINIMAX_AUTO_INVOICE', false),
+    'auto_invoice_queue' => env('MINIMAX_AUTO_INVOICE_QUEUE', true),
 ];
