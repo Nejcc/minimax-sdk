@@ -93,11 +93,13 @@ php artisan mcp:start minimax
 > client, so it won't absorb these tools. Run the two side by side — add both to
 > your agent's config and it sees both toolsets.
 
-Example client entry (`.mcp.json` / Claude Code):
+Example client config (`.mcp.json` / Claude Code) — `minimax` runs alongside
+any other MCP servers, such as Boost:
 
 ```json
 {
   "mcpServers": {
+    "boost":   { "command": "php", "args": ["artisan", "boost:mcp"] },
     "minimax": { "command": "php", "args": ["artisan", "mcp:start", "minimax"] }
   }
 }
