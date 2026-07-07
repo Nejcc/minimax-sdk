@@ -145,4 +145,26 @@ final class CoverageTest extends TestCase
         $this->assertSame('si-tok', $si->token());
         $this->assertSame('hr-tok', $hr->token());
     }
+
+    public function test_it_rejects_path_traversal(): void
+    {
+        $this->expectException(MinimaxException::class);
+        $this->expectExceptionMessage('Invalid Minimax API path');
+
+        Minimax::client()->request('GET', 'orgs/123/customers/../../secret');
+    }
+
+    public function test_it_refuses_to_follow_an_off_host_location(): void
+    {
+        Http::fake($this->fakeToken() + [
+            '*/orgs/123/customers' => Http::response('', 201, [
+                'Location' => 'https://evil.example.com/steal-the-token',
+            ]),
+        ]);
+
+        $this->expectException(MinimaxException::class);
+        $this->expectExceptionMessage('off-host Location');
+
+        Minimax::customers()->create(['Name' => 'x']);
+    }
 }

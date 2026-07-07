@@ -54,6 +54,12 @@ final class McpTest extends Orchestra
         MinimaxServer::tool(ListResourceTool::class, [])->assertHasErrors();
     }
 
+    public function test_list_resource_tool_rejects_a_slug_outside_the_registry(): void
+    {
+        MinimaxServer::tool(ListResourceTool::class, ['resource' => 'not_in_registry'])
+            ->assertHasErrors();
+    }
+
     public function test_find_record_tool_returns_a_record(): void
     {
         MinimaxServer::tool(FindRecordTool::class, ['resource' => 'customers', 'id' => '1', 'org_id' => 123])

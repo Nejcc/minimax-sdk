@@ -32,6 +32,12 @@ final class Client
      */
     public function request(string $method, string $path, ?array $body = null, array $query = []): array
     {
+        // Reject path traversal so a crafted id/slug can't escape the intended
+        // endpoint (e.g. "orgs/1/customers/../../foo").
+        if (str_contains($path, '..')) {
+            throw new MinimaxException("Invalid Minimax API path: {$path}");
+        }
+
         if ($this->config['fake'] ?? false) {
             return $this->fake($method, $path);
         }
@@ -56,6 +62,15 @@ final class Client
      */
     private function follow(string $url): array
     {
+        // Never re-send the Bearer token to a host we didn't authenticate
+        // against — only follow a Location on the same origin as the API base.
+        $host = mb_strtolower((string) parse_url($url, PHP_URL_HOST));
+        $scheme = mb_strtolower((string) parse_url($url, PHP_URL_SCHEME));
+
+        if ($host !== mb_strtolower((string) parse_url($this->baseUrl(), PHP_URL_HOST)) || $scheme !== 'https') {
+            throw new MinimaxException("Refusing to follow off-host Location: {$url}");
+        }
+
         return $this->decode(
             $this->http->withToken($this->token())->acceptJson()->get($url)
         );

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nejcc\Minimax\Mcp\Tools;
 
 use Illuminate\Contracts\JsonSchema\JsonSchema;
+use Illuminate\Validation\Rule;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Attributes\Description;
@@ -17,10 +18,14 @@ final class FindRecordTool extends Tool
 {
     public function handle(Request $request, Minimax $minimax): Response
     {
+        $allowed = array_keys((array) config('minimax.resources'));
+
         $validated = $request->validate([
-            'resource' => ['required', 'string', 'max:64'],
-            'id' => ['required'],
+            'resource' => ['required', 'string', 'max:64', Rule::in($allowed)],
+            'id' => ['required', 'string', 'max:64'],
             'org_id' => ['nullable', 'integer'],
+        ], [
+            'resource.in' => 'Unknown resource. Allowed: '.implode(', ', $allowed).'.',
         ]);
 
         if (isset($validated['org_id'])) {
