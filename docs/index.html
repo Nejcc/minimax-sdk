@@ -86,6 +86,37 @@
         .hljs { border-radius: 0.75rem; }
         .hljs::-webkit-scrollbar-thumb { background: #4b5563; background-clip: content-box; }
         .hljs { scrollbar-color: #4b5563 transparent; }
+
+        /* Header search trigger */
+        .search-trigger { @apply hidden items-center gap-2 rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-sm text-neutral-400 transition hover:bg-white hover:text-neutral-600 sm:flex dark:border-neutral-700 dark:bg-neutral-900 dark:hover:bg-neutral-800 dark:hover:text-neutral-300; }
+        .search-trigger kbd { @apply rounded border border-neutral-300 bg-white px-1.5 font-sans text-xs text-neutral-500 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-400; }
+
+        /* Search modal */
+        .sm-overlay { @apply fixed inset-0 z-50 flex items-start justify-center bg-neutral-900/50 px-4 pt-[12vh] backdrop-blur-sm; }
+        .sm-modal { @apply w-full max-w-xl overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-2xl dark:border-neutral-800 dark:bg-neutral-900; }
+        .sm-input { @apply flex items-center gap-3 border-b border-neutral-100 px-4 py-3.5 dark:border-neutral-800; }
+        .sm-input input { @apply w-full bg-transparent text-base text-neutral-900 outline-none placeholder:text-neutral-400 dark:text-white; }
+        .sm-input kbd { @apply rounded border border-neutral-200 px-1.5 py-0.5 font-sans text-xs text-neutral-400 dark:border-neutral-700; }
+        .sm-results { @apply max-h-[45vh] overflow-y-auto p-2; }
+        .sm-results li { @apply cursor-pointer rounded-lg px-3 py-2; }
+        .sm-results li.active { @apply bg-brand/10; }
+        .sm-row { @apply flex items-center gap-2; }
+        .sm-kind { @apply w-4 text-center text-sm text-neutral-400; }
+        .sm-title { @apply text-sm font-medium text-neutral-800 dark:text-neutral-100; }
+        .sm-results li.active .sm-title, .sm-results li.active .sm-kind { @apply text-brand; }
+        .sm-snip { @apply mt-0.5 truncate pl-6 text-xs text-neutral-500 dark:text-neutral-400; }
+        .sm-empty { @apply px-4 py-10 text-center text-sm text-neutral-400; }
+        .sm-foot { @apply flex items-center gap-1.5 border-t border-neutral-100 px-4 py-2.5 text-xs text-neutral-400 dark:border-neutral-800; }
+        .sm-foot kbd { @apply rounded border border-neutral-200 px-1 font-sans text-[0.65rem] dark:border-neutral-700; }
+
+        /* Footer */
+        .ftr { @apply mt-8 border-t border-neutral-200 dark:border-neutral-800; }
+        .ftr-inner { @apply mx-auto flex max-w-7xl flex-col gap-4 px-6 py-8 sm:flex-row sm:items-center sm:justify-between; }
+        .ftr-brand { @apply font-semibold text-neutral-900 dark:text-white; }
+        .ftr-sub { @apply ml-2 text-sm text-neutral-400; }
+        .ftr-links { @apply flex flex-wrap gap-x-5 gap-y-2 text-sm; }
+        .ftr-links a { @apply text-neutral-500 no-underline transition hover:text-brand dark:text-neutral-400; }
+        .ftr-copy { @apply mx-auto max-w-7xl px-6 pb-8 text-xs text-neutral-400; }
     </style>
 </head>
 <body class="bg-white font-sans text-neutral-700 antialiased dark:bg-neutral-950 dark:text-neutral-300">
@@ -148,6 +179,8 @@ MINIMAX_ORG_ID=123456            # default organisation
 MINIMAX_FAKE=false               # true = offline fixtures
 MINIMAX_TOKEN_LEEWAY=30          # seconds shaved off token TTL
 MINIMAX_ADMIN_PREFIX=admin/minimax
+MINIMAX_AUTO_INVOICE=false       # host app: issue an invoice on a paid order
+MINIMAX_AUTO_INVOICE_QUEUE=true  # queue that work (recommended) or run inline
 ```
 
 ### Config reference
@@ -163,6 +196,8 @@ MINIMAX_ADMIN_PREFIX=admin/minimax
 | `token_leeway` | `30` | Seconds subtracted from `expires_in` so a token never expires mid-flight. |
 | `admin_prefix` | `admin/minimax` | URL prefix for the local admin UI. |
 | `resources` | 13 slugs | Registry of org-scoped endpoints browsable in the admin UI. See [Generic resources](#generic-resources). |
+| `auto_invoice` | `false` | Host-app: issue an invoice when an order is paid. The SDK ships the toggle; the wiring lives in your app. |
+| `auto_invoice_queue` | `true` | Queue the auto-invoice work (recommended) or run it inline. |
 
 ## Authentication
 
@@ -384,6 +419,26 @@ In the `local` environment the package registers a standalone admin section unde
 
 > Pair the admin UI with [fake mode](#fake-mode) to click through the whole thing before your real credentials land.
 
+## MCP for AI agents
+
+If `laravel/mcp` is installed, the package registers a local MCP server named `minimax` with three **read-only** tools — `list-organisations`, `list-resource` and `find-record` — so an AI coding agent (Claude Code, Codex, Cursor …) can read the Minimax API directly.
+
+```bash
+php artisan mcp:start minimax
+```
+
+Add it to your agent's MCP config alongside any other servers:
+
+```json
+{
+  "mcpServers": {
+    "minimax": { "command": "php", "args": ["artisan", "mcp:start", "minimax"] }
+  }
+}
+```
+
+Pair it with `MINIMAX_FAKE=true` to let an agent explore the API with no credentials. Laravel Boost is a separate MCP *server*, not a client — run the two side by side and your agent sees both toolsets. `list-resource` / `find-record` are limited to the slugs in your `resources` registry.
+
 ## Testing
 
 The SDK uses Laravel's HTTP client, so fake it with `Http::fake()` in your own tests. The package ships 9 tests covering auth, token caching, the Location-follow, invoice PDF decode, `byCode()`, org overrides and error paths.
@@ -442,20 +497,24 @@ Full facade surface at a glance.
                 <span class="hidden rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-500 sm:inline dark:bg-neutral-800 dark:text-neutral-400">13.x</span>
             </a>
             <div class="ml-auto flex items-center gap-3">
-                <span class="hidden text-sm text-neutral-400 md:inline">Laravel 13 · PHP 8.4+</span>
+                <button @click="openSearch" class="search-trigger" aria-label="Search docs">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.3-4.3M11 19a8 8 0 100-16 8 8 0 000 16z"/></svg>
+                    <span>Search…</span>
+                    <kbd>⌘K</kbd>
+                </button>
                 <button @click="toggleTheme" class="rounded-lg border border-neutral-200 p-2 text-neutral-600 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800" aria-label="Toggle theme">
                     <svg v-if="dark" class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z"/></svg>
                     <svg v-else class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/></svg>
                 </button>
-                <a href="https://github.com/nejcc" class="rounded-lg border border-neutral-200 px-3 py-1.5 text-sm font-medium text-neutral-600 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800">GitHub</a>
+                <a href="https://github.com/Nejcc/minimax-sdk" class="rounded-lg border border-neutral-200 px-3 py-1.5 text-sm font-medium text-neutral-600 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800">GitHub</a>
             </div>
         </div>
     </header>
 
     <div class="mx-auto flex max-w-7xl px-0 sm:px-6">
         <aside
-            class="fixed inset-y-0 left-0 z-30 w-72 shrink-0 overflow-y-auto border-r border-neutral-200 bg-white px-4 pb-10 pt-20 transition-transform lg:sticky lg:top-16 lg:z-0 lg:h-[calc(100vh-4rem)] lg:tranneutral-x-0 lg:border-r-0 lg:pt-6 dark:border-neutral-800 dark:bg-neutral-950"
-            :class="mobileOpen ? 'tranneutral-x-0 shadow-2xl' : '-tranneutral-x-full'">
+            class="fixed inset-y-0 left-0 z-30 w-72 shrink-0 overflow-y-auto border-r border-neutral-200 bg-white px-4 pb-10 pt-20 transition-transform lg:sticky lg:top-16 lg:z-0 lg:h-[calc(100vh-4rem)] lg:translate-x-0 lg:border-r-0 lg:pt-6 dark:border-neutral-800 dark:bg-neutral-950"
+            :class="mobileOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'">
             <div class="relative mb-5">
                 <input v-model="q" type="search" placeholder="Filter docs…"
                        class="w-full rounded-lg border border-neutral-200 bg-neutral-50 py-2 pl-9 pr-3 text-sm outline-none focus:border-brand focus:bg-white focus:ring-2 focus:ring-brand/20 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:focus:bg-neutral-900">
@@ -507,6 +566,51 @@ Full facade surface at a glance.
             </ul>
         </aside>
     </div>
+
+    <!-- Footer -->
+    <footer class="ftr">
+        <div class="ftr-inner">
+            <div>
+                <span class="ftr-brand">Minimax SDK</span>
+                <span class="ftr-sub">Laravel SDK for the Minimax accounting API (SI/HR/RS)</span>
+            </div>
+            <nav class="ftr-links">
+                <a href="https://github.com/Nejcc/minimax-sdk">GitHub</a>
+                <a href="https://packagist.org/packages/nejcc/minimax-sdk">Packagist</a>
+                <a href="https://github.com/Nejcc/minimax-sdk/wiki">Wiki</a>
+                <a href="https://github.com/Nejcc/minimax-sdk/discussions">Discussions</a>
+                <a href="https://github.com/Nejcc/minimax-sdk/blob/master/LICENSE">MIT License</a>
+            </nav>
+        </div>
+        <div class="ftr-copy">© 2026 Nejc Čotič · Built for Explorer Collection</div>
+    </footer>
+
+    <!-- Global search modal (⌘K) -->
+    <div v-if="searchOpen" class="sm-overlay" @click.self="closeSearch">
+        <div class="sm-modal" role="dialog" aria-label="Search docs">
+            <div class="sm-input">
+                <svg class="h-5 w-5 text-neutral-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.3-4.3M11 19a8 8 0 100-16 8 8 0 000 16z"/></svg>
+                <input ref="searchInput" v-model="searchQuery"
+                       @keydown.down.prevent="moveSel(1)" @keydown.up.prevent="moveSel(-1)"
+                       @keydown.enter.prevent="go(searchResults[searchActive])" @keydown.esc="closeSearch"
+                       type="text" placeholder="Search the docs…" autocomplete="off" spellcheck="false">
+                <kbd>Esc</kbd>
+            </div>
+            <ul v-if="searchResults.length" class="sm-results">
+                <li v-for="(r, i) in searchResults" :key="r.id + '-' + i"
+                    :class="{ active: i === searchActive }"
+                    @mouseenter="searchActive = i" @click="go(r)">
+                    <div class="sm-row">
+                        <span class="sm-kind">{{ r.level === 3 ? '#' : '§' }}</span>
+                        <span class="sm-title">{{ r.title }}</span>
+                    </div>
+                    <div v-if="r.snippet" class="sm-snip">{{ r.snippet }}</div>
+                </li>
+            </ul>
+            <div v-else class="sm-empty">{{ searchQuery ? 'No matches.' : 'Type to search — try “invoice”, “fake”, “mcp”.' }}</div>
+            <div class="sm-foot"><kbd>↑</kbd><kbd>↓</kbd> to navigate · <kbd>↵</kbd> to open · <kbd>esc</kbd> to close</div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -519,7 +623,7 @@ Full facade surface at a glance.
         { title: 'Getting Started', ids: ['requirements', 'installation', 'configuration'] },
         { title: 'Core Concepts',   ids: ['authentication', 'fake-mode', 'quick-start', 'the-manager'] },
         { title: 'Resources',       ids: ['crud-basics', 'organisations', 'customers-items-orders', 'code-lists', 'invoices', 'generic-resources'] },
-        { title: 'Tooling',         ids: ['error-handling', 'admin-ui', 'testing'] },
+        { title: 'Tooling',         ids: ['error-handling', 'admin-ui', 'mcp-for-ai-agents', 'testing'] },
         { title: 'Reference',       ids: ['api-reference'] },
     ];
 
@@ -528,6 +632,7 @@ Full facade surface at a glance.
             return {
                 q: '', active: '', activeToc: '', mobileOpen: false, html: '', nav: [], toc: [],
                 dark: document.documentElement.classList.contains('dark'),
+                searchOpen: false, searchQuery: '', searchIndex: [], searchActive: 0,
             };
         },
         computed: {
@@ -538,12 +643,52 @@ Full facade surface at a glance.
                     .map(g => ({ ...g, items: g.items.filter(i => i.label.toLowerCase().includes(q) || g.title.toLowerCase().includes(q)) }))
                     .filter(g => g.items.length);
             },
+            searchResults() {
+                const q = this.searchQuery.trim().toLowerCase();
+                // Empty query → autosuggest the top sections.
+                if (!q) return this.searchIndex.filter(e => e.level === 2).slice(0, 6);
+                const hits = [];
+                for (const e of this.searchIndex) {
+                    const inTitle = e.title.toLowerCase().includes(q);
+                    const bodyIdx = e.text.toLowerCase().indexOf(q);
+                    if (!inTitle && bodyIdx < 0) continue;
+                    let snippet = '';
+                    if (!inTitle && bodyIdx >= 0) {
+                        const start = Math.max(0, bodyIdx - 32);
+                        snippet = (start > 0 ? '…' : '') + e.text.slice(start, bodyIdx + q.length + 48).trim() + '…';
+                    }
+                    hits.push({ ...e, score: inTitle ? 0 : 1, snippet });
+                }
+                return hits.sort((a, b) => a.score - b.score).slice(0, 8);
+            },
+        },
+        watch: {
+            searchQuery() { this.searchActive = 0; },
         },
         methods: {
             toggleTheme() {
                 this.dark = !this.dark;
                 document.documentElement.classList.toggle('dark', this.dark);
                 localStorage.setItem('minimax-theme', this.dark ? 'dark' : 'light');
+            },
+            openSearch() {
+                this.searchOpen = true;
+                this.searchActive = 0;
+                this.$nextTick(() => this.$refs.searchInput?.focus());
+            },
+            closeSearch() {
+                this.searchOpen = false;
+                this.searchQuery = '';
+            },
+            moveSel(dir) {
+                const n = this.searchResults.length;
+                if (n) this.searchActive = (this.searchActive + dir + n) % n;
+            },
+            go(result) {
+                if (!result) return;
+                this.closeSearch();
+                history.replaceState(null, '', '#' + result.id);
+                document.getElementById(result.id)?.scrollIntoView();
             },
         },
         async mounted() {
@@ -564,6 +709,26 @@ Full facade surface at a glance.
                 toc.push({ id: h.id, label: h.textContent, level: h.tagName === 'H3' ? 3 : 2 });
             });
             this.toc = toc;
+
+            // Build the search index: each heading + the text under it, up to the
+            // next heading. Powers the ⌘K modal with content-level autosuggest.
+            this.searchIndex = toc.map(({ id, label, level }) => {
+                let text = '';
+                let el = document.getElementById(id)?.nextElementSibling;
+                while (el && !/^H[23]$/.test(el.tagName)) {
+                    text += ' ' + el.textContent;
+                    el = el.nextElementSibling;
+                }
+                return { id, title: label, level, text: text.replace(/\s+/g, ' ').trim() };
+            });
+
+            // ⌘K / Ctrl+K toggles search from anywhere.
+            window.addEventListener('keydown', (e) => {
+                if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+                    e.preventDefault();
+                    this.searchOpen ? this.closeSearch() : this.openSearch();
+                }
+            });
 
             // Build grouped nav from GROUPS, keeping only sections that exist.
             const claimed = new Set();

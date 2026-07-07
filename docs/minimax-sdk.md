@@ -53,6 +53,8 @@ MINIMAX_ORG_ID=123456            # default organisation
 MINIMAX_FAKE=false               # true = offline fixtures
 MINIMAX_TOKEN_LEEWAY=30          # seconds shaved off token TTL
 MINIMAX_ADMIN_PREFIX=admin/minimax
+MINIMAX_AUTO_INVOICE=false       # host app: issue an invoice on a paid order
+MINIMAX_AUTO_INVOICE_QUEUE=true  # queue that work (recommended) or run inline
 ```
 
 ### Config reference
@@ -68,6 +70,8 @@ MINIMAX_ADMIN_PREFIX=admin/minimax
 | `token_leeway` | `30` | Seconds subtracted from `expires_in` so a token never expires mid-flight. |
 | `admin_prefix` | `admin/minimax` | URL prefix for the local admin UI. |
 | `resources` | 13 slugs | Registry of org-scoped endpoints browsable in the admin UI. See [Generic resources](#generic-resources). |
+| `auto_invoice` | `false` | Host-app: issue an invoice when an order is paid. The SDK ships the toggle; the wiring lives in your app. |
+| `auto_invoice_queue` | `true` | Queue the auto-invoice work (recommended) or run it inline. |
 
 ## Authentication
 
@@ -288,6 +292,26 @@ In the `local` environment the package registers a standalone admin section unde
 | `/admin/minimax/resources/{slug}` | Browse any registered resource's first page as a table. |
 
 > Pair the admin UI with [fake mode](#fake-mode) to click through the whole thing before your real credentials land.
+
+## MCP for AI agents
+
+If `laravel/mcp` is installed, the package registers a local MCP server named `minimax` with three **read-only** tools — `list-organisations`, `list-resource` and `find-record` — so an AI coding agent (Claude Code, Codex, Cursor …) can read the Minimax API directly.
+
+```bash
+php artisan mcp:start minimax
+```
+
+Add it to your agent's MCP config alongside any other servers:
+
+```json
+{
+  "mcpServers": {
+    "minimax": { "command": "php", "args": ["artisan", "mcp:start", "minimax"] }
+  }
+}
+```
+
+Pair it with `MINIMAX_FAKE=true` to let an agent explore the API with no credentials. Laravel Boost is a separate MCP *server*, not a client — run the two side by side and your agent sees both toolsets. `list-resource` / `find-record` are limited to the slugs in your `resources` registry.
 
 ## Testing
 
