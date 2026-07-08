@@ -74,6 +74,7 @@
         .badge.fake { background: #3a2a12; color: #ffb84d; border-color: #5a4420; }
         .spacer { margin-left: auto; }
         .content { padding: 1.5rem 1.75rem; max-width: 1000px; }
+        .content.wide { max-width: none; }
 
         /* Panels */
         .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; margin-bottom: 1.25rem; overflow: hidden; }
@@ -178,7 +179,7 @@
             @endif
         </div>
 
-        <div class="content">
+        <div class="content @yield('contentClass')">
             @yield('content')
         </div>
     </main>

@@ -68,6 +68,24 @@ return [
     'token_leeway' => env('MINIMAX_TOKEN_LEEWAY', 30),
 
     /*
+    | Org-specific record IDs the host app references when building an issued
+    | invoice. Minimax wants references, not inline data: a customer, a catalog
+    | item and a currency that already exist in the org. For a B2C webshop a
+    | single generic customer ("Koncni Kupec") and item are the norm — the real
+    | product name is carried per row via ItemName. Resolve these once from the
+    | admin UI / API and set them in .env.
+    */
+    'default_customer_id' => env('MINIMAX_DEFAULT_CUSTOMER_ID'),
+    'default_item_id' => env('MINIMAX_DEFAULT_ITEM_ID'),
+    'currency_id' => env('MINIMAX_CURRENCY_ID', 7),
+
+    /*
+    | Issued-invoice report template id (which layout Minimax renders). Required
+    | by the issuedinvoices create endpoint. Find it under report-templates.
+    */
+    'report_template_id' => env('MINIMAX_REPORT_TEMPLATE_ID'),
+
+    /*
     | Host-app auto-invoicing (optional). When enabled, the application issues a
     | Minimax invoice as soon as an order is paid. This SDK does not act on these
     | keys itself — they drive the host app's integration (e.g. a listener on its

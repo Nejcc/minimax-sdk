@@ -119,6 +119,44 @@ Route::prefix(config('minimax.admin_prefix'))->group(function () use ($envStatus
         return view('minimax::resource', ['label' => $registry[$resource], 'slug' => $resource, 'rows' => $rows]);
     })->name('minimax.resource');
 
+    // Manual test trigger: issue a Minimax invoice for a host-app order. The
+    // invoicing logic lives in the host app (App\Services\Minimax\
+    // OrderInvoiceService); this route is a thin local-only shim, guarded so
+    // the SDK still loads in an app that doesn't provide it. No session
+    // middleware here, so the result is carried back as a query param.
+    Route::post('/resources/issuedinvoices/issue', function (\Illuminate\Http\Request $request) {
+        $listUrl = url(mb_trim(config('minimax.admin_prefix'), '/').'/resources/issuedinvoices');
+        $orderClass = 'App\\Models\\Order';
+        $serviceClass = 'App\\Services\\Minimax\\OrderInvoiceService';
+
+        if (!class_exists($orderClass) || !class_exists($serviceClass)) {
+            return redirect()->to($listUrl.'?error='.urlencode('Order invoicing is not available in this app.'));
+        }
+
+        $order = $orderClass::find((int) $request->input('order_id'));
+        if ($order === null) {
+            return redirect()->to($listUrl.'?error='.urlencode('Order not found.'));
+        }
+
+        try {
+            app($serviceClass)->issue($order, true);
+            $order->refresh();
+            $message = filled($order->minimax_invoice_id)
+                ? "Račun {$order->invoice_number} izdan za naročilo #{$order->id}."
+                : "Nič izdano za naročilo #{$order->id} (že ima račun?).";
+
+            return redirect()->to($listUrl.'?ok='.urlencode($message));
+        } catch (\Throwable $e) {
+            // Surface Minimax's own validation body (the useful part of a 409),
+            // not just the bare status line.
+            $detail = $e instanceof MinimaxException && filled($e->body)
+                ? (is_array($e->body) ? json_encode($e->body, JSON_UNESCAPED_UNICODE) : (string) $e->body)
+                : $e->getMessage();
+
+            return redirect()->to($listUrl.'?error='.urlencode($detail));
+        }
+    })->name('minimax.issue-test');
+
     // Custom 404 for any unknown page under the admin prefix. Registered
     // last so the specific routes above win; scoped so it never shadows the
     // app's own global fallback.

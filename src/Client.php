@@ -155,6 +155,10 @@ final class Client
                 'AttachmentData' => base64_encode('%PDF-1.4 fake invoice'),
             ]],
             str_contains($path, '/code(') => ['VatRateId' => 1, 'Percent' => 22, 'CurrencyId' => 1, 'CountryId' => 1],
+            str_contains($path, 'vatrates') => ['Rows' => [
+                ['VatRateId' => 30, 'Percent' => 0, 'Code' => 'N'],
+                ['VatRateId' => 36, 'Percent' => 22, 'Code' => 'S'],
+            ], 'CurrentPageSize' => 2],
             $method === 'POST' => [
                 'IssuedInvoiceId' => 999, 'CustomerId' => 999, 'ItemId' => 999, 'OrderId' => 999,
                 'RowVersion' => 'fake-rv', 'Status' => 'O',
